@@ -5,11 +5,13 @@ import numpy as np
 from scipy import signal
 import sympy as sy
 
+
 def poly_to_sympy(num, den, symbol='s', simplify=True):
     """ Convert Scipy's LTI instance to Sympy expression """
     s = sy.Symbol(symbol)
     G = sy.Poly(num, s) / sy.Poly(den, s)
     return sy.simplify(G) if simplify else G
+
 
 def poly_from_sympy(xpr, symbol='s'):
     """ Convert Sympy transfer function polynomial to Scipy LTI """
@@ -20,12 +22,43 @@ def poly_from_sympy(xpr, symbol='s'):
     l_num, l_den = [sy.lambdify((), c)() for c in c_num_den]  # convert to floats
     return l_num, l_den
 
+
+def TF_from_signal(y, u, fs, plot=False, plottitle=''):
+    if len(y.shape) == 1:
+        y = y.reshape((1, y.size))
+    M, N = y.shape
+
+    H_all = np.zeros((M, int(N/2)), dtype=complex)
+    a = signal.correlate(u, u, "same")
+    fr = np.fft.fftfreq(N, 1/fs)[:int(N/2)]
+
+    if plot:
+        plt.figure()
+    for k in range(M):
+        c = signal.correlate(y[k, :], u, "same")
+        H = np.fft.fft(c) / np.fft.fft(a)
+        H = H[:int(N/2)]
+        H_all[k, :] = H
+
+        if plot:
+            plt.subplot(211)
+            plt.plot(fr, abs(H))
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.grid(which="both")
+            plt.subplot(212)
+            plt.plot(fr, np.unwrap(np.angle(H)))
+            plt.xscale('log')
+            plt.grid(which="both")
+    return H_all, fr
+
+
 class TF(signal.TransferFunction):
     def __init__(self, num, den):
         super().__init__(num, den)
 
     def __neg__(self):
-        return TF(-self.num,self.den)
+        return TF(-self.num, self.den)
 
     def __mul__(self, other):
         self_s = self.to_sympy()
@@ -51,7 +84,7 @@ class TF(signal.TransferFunction):
             other_s = other.to_sympy()
         return TF.from_sympy(other_s / self_s)
 
-    def __add__(self,other):
+    def __add__(self, other):
         self_s = self.to_sympy()
         if type(other) in [int, float]:
             other_s = other
@@ -59,7 +92,7 @@ class TF(signal.TransferFunction):
             other_s = other.to_sympy()
         return TF.from_sympy(self_s + other_s)
 
-    def __sub__(self,other):
+    def __sub__(self, other):
         self_s = self.to_sympy()
         if type(other) in [int, float]:
             other_s = other
@@ -67,7 +100,7 @@ class TF(signal.TransferFunction):
             other_s = other.to_sympy()
         return TF.from_sympy(self_s - other_s)
 
-    def __rsub__(self,other):
+    def __rsub__(self, other):
         self_s = self.to_sympy()
         if type(other) in [int, float]:
             other_s = other
@@ -96,27 +129,18 @@ class TF(signal.TransferFunction):
                                                method='bilinear')
         return poly_to_sympy(numz, denz, 'z')
 
-    def apply_f(self, inputs, outputs, Ts):
-        [num], den, dt = signal.cont2discrete((self.num, self.den), Ts,
-                                              method='bilinear')
+    def apply_f(self, u, x, Ts):
+        A, B, C, D = signal.tf2ss(self.num, self.den)
+        (A, B, C, D, _) = signal.cont2discrete((A, B, C, D), Ts,
+                                               method='bilinear')
 
-        Nn = num.size
-        Nd = den.size - 1
-
-        x = np.zeros(Nn)
-        y = np.zeros(Nd)
-
-        if Nn >= inputs.size:
-            x[:inputs.size] = np.flipud(inputs)
-        else:
-            x = np.flipud(inputs[-Nn:])
-
-        if Nd >= outputs.size:
-            y[:outputs.size] = np.flipud(outputs)
-        else:
-            y = np.flipud(outputs[-Nd:])
-
-        return den[0]*(sum(num*x) - sum(den[1:]*y))
+        x_vec = x.reshape((x.size, 1))
+        x1_vec = np.dot(A, x_vec) + B * u
+        y = np.dot(C, x_vec) + D * u
+        if y.imag > 0:
+            print('y has a real part {}'.format(y))
+            print((A, B, C, D))
+        return y.real, np.array(x1_vec.reshape((x1_vec.size)))
 
     def plotHw(self, w=None, ylabel=None):
         w, H = self.freqresp(w)
@@ -144,7 +168,6 @@ class TransferFunction_1stOrder(TF):
         self.A = A
         self.a = a
 
-
     def apply_f(self, xk_0, xk_1, yk_1, Ts):
         """
             H(s) = A / (1 + a*s)
@@ -164,12 +187,12 @@ class TransferFunction_1stOrder(TF):
 
 class PID(TF):
     def __init__(self, P, I, D):
-        tf = TF([P],[1])
+        tf = TF([P], [1])
         if I != 0:
-            tf += TF([I],[1,0])
+            tf += TF([I], [1, 0])
         if D != 0:
             tau_d = P/D
-            tf += TF([D, 0],[tau_d/8, 1])
+            tf += TF([D, 0], [tau_d/8, 1])
         super().__init__(tf.num, tf.den)
 
         self.kP = P

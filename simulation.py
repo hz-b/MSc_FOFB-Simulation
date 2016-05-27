@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import mysignal as ms
 
+from scipy import signal
 
-def model_1(d):
+def model_1(d, PID, H, fs):
     """
     The bloc diagram is the following:
 
@@ -22,28 +23,32 @@ def model_1(d):
     """
 
     r = 0
-    y = np.zeros(t.size)
+    N = d.size
+    y = np.zeros(N)
 
-    yd = np.zeros(t.size)
-    e = np.zeros(t.size)
-    u = np.zeros(t.size)
-
-    for k in range(1, t.size):
+    yd = np.zeros(N)
+    e = np.zeros(N)
+    u = np.zeros(N)
+    xcor = np.zeros(H.den.size-1)
+    for k in range(1, N):
         e[k] = r - yd[k-1]
         u[k] = pid.apply_f(e[:k+1])
 #        u[k] = super(PID, pid).apply_f(e[:k+1],u[:k],Ts)
-        y[k] = H.apply_f(u[:k+1], y[:k], Ts)
+        y[k], xcor = H.apply_f(u[k], xcor, 1/fs)
         yd[k] = y[k] + d[k]
 
     plt.figure()
+    t = np.arange(N)/fs
     plt.plot(t, d)
     plt.plot(t, u)
     plt.plot(t, yd)
     plt.legend(['perturbation', 'PID', 'output'], loc='best')
     plt.title('Without correction delay')
 
+    return yd, d, fs
 
-def model_1_delay(d_s, delay=0):
+
+def model_1_delay(d_s, pid, H, delay=0, fs=1):
     """
     The bloc diagram is the following:
 
@@ -67,6 +72,7 @@ def model_1_delay(d_s, delay=0):
     r = 0
     y = np.zeros(t_real.size)
     yd = np.zeros(t_real.size)
+    ydd = np.zeros(t_real.size)
     u = np.zeros(t_real.size)
     u_delay = np.zeros(t_real.size)
     d = np.zeros(t_real.size)
@@ -75,11 +81,11 @@ def model_1_delay(d_s, delay=0):
     # Init sample time variables
     u_s = np.zeros(t.size)
     e_s = np.zeros(t.size)
-
+    xring = np.zeros(H_ring.den.size-1)
+    xcor = np.zeros(H.den.size-1)
     sample = 0
     for k in range(1, t_real.size):
-
-        e[k] = r - yd[k-1]
+        e[k] = r - ydd[k-1]
         d[k] = d_s[sample]
         if t_real[k] >= t[sample] and sample < t.size-1:
             sample += 1
@@ -90,9 +96,9 @@ def model_1_delay(d_s, delay=0):
         if k >= delay_offset:
             u_delay[k] = u[k-delay_offset]
 
-        y[k] = H.apply_f(u_delay[:k+1], y[:k], Ts_real)
+        y[k], xcor = H.apply_f(u_delay[k], xcor, Ts_real)
         yd[k] = y[k] + d[k]
-
+        ydd[k], xring = H_ring.apply_f(yd[k], xring, Ts_real)
     plt.figure()
     plt.plot(t_real, d)
     plt.plot(t_real, u)
@@ -105,13 +111,15 @@ def model_1_delay(d_s, delay=0):
                 ], loc='best')
     plt.title('With correction delay')
 
+    return yd, d, fs_real
+
 if __name__ == "__main__":
 
     plt.ion()
     plt.close('all')
     fs = 150.
     Ts = 1/fs
-    t_max = 1.
+    t_max = 10.
 
     A = 3
     a = A / (2*np.pi*3)
@@ -120,9 +128,15 @@ if __name__ == "__main__":
 
     """ H = A / (1 + a * s) """
     H = ms.TF([A], [a, 1])
-#   H.plotHw(w=np.logspace(-1,3)*2*np.pi, ylabel="Peak current [in A]")
+    ring_data = np.load('ring_tf.npy')[0]
+    ndnum = np.flipud(np.array(ring_data['num'])*np.exp(1j*ring_data['phase']))
+    num = ndnum.tolist()
+    den = np.flipud(np.array(ring_data['den'])).tolist()
+    H_ring = ms.TF(num, den)
 
-    pid = ms.PID(0.8, 0.5, 0.5)
+    H.plotHw(w=np.logspace(-1,3)*2*np.pi, ylabel="Peak current [in A]")
+    H_ring.plotHw()
+    pid = ms.PID(0.8, 0, 0)
 
     G = 1/(1-H*pid)
     G.plotHw(w=np.logspace(-1, 3)*2*np.pi)
@@ -130,15 +144,23 @@ if __name__ == "__main__":
 #    d = np.zeros(t.size) ; d[np.argmin(abs(t-.1))] = 1 ; d[np.argmin(abs(t-(t[-1]-.2)))] = -1
 
     # Step
-    d = np.piecewise(t, [t < 0.1, t >= 0.1, t > t_max-0.2], [0, 1, 0])
-    model_1(d)
+ #   d = np.piecewise(t, [t < 0.1, t >= 0.1, t > t_max-0.2], [0, 1, 0])
+    amplitude = 0.02
+    f1 = 1e-3
+    f2 = 75
+    f_lin = 2*f1*t+(f2-f1)/t[-1]*0.5*(t**2)
+    f_exp = f1*t[-1]/np.log(f2/f1)*(np.exp(-t)-1)
+
+    d = amplitude*np.sin(2*np.pi*f_exp)
+        # Sinus
+    d = np.sin(2*np.pi*t*2.5)
+    y, x, fs_r = model_1(d, pid, H, fs)
+    ms.TF_from_signal(y, x, fs_r, plottitle='no delay')
 
     delay_calc = 1e-3  # 2e-3
     delay_adc = 1e-4
     delay_dac = 3e-4
     delay = delay_calc + delay_adc + delay_dac
-    model_1_delay(d, delay)
+    y, x, fs_r = model_1_delay(d, pid, H, delay, fs)
 
-    # Sinus
-#    d = np.sin(2*np.pi*t*2.5)
-#    model_1(d)
+    ms.TF_from_signal(y, x, fs_r, plottitle='with delay')
