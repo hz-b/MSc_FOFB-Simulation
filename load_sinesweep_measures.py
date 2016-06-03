@@ -26,7 +26,8 @@ if __name__ == "__main__":
     xy = data['data']['xy'][:, 0, :]
     yx = data['data']['yx'][:, 0, :]
     yy = data['data']['yy'][:, 0, :]
-
+    plt.plot(xx[0,:])
+    plt.plot(u)
     N = u.size
     fs = 150
     freqs = np.fft.fftfreq(N, 1/fs)[:int(N/2)]

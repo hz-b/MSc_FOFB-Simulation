@@ -54,8 +54,16 @@ def TF_from_signal(y, u, fs, plot=False, plottitle=''):
 
 
 class TF(signal.TransferFunction):
-    def __init__(self, num, den):
-        super().__init__(num, den)
+    def __init__(self, *args):
+        if len(args) not in [2, 4]:
+            raise ValueError("2 (num, den) or 4 (A, B, C, D) arguments "
+                             "expected, not {}.".format((len(args))))
+        if len(args) == 2:
+            super().__init__(args[0], args[1])
+        else:
+            A,B,C,D = args
+            n,d = signal.ss2tf(A,B,C,D)
+            super().__init__(n,d)
 
     def __neg__(self):
         return TF(-self.num, self.den)
