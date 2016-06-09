@@ -64,7 +64,7 @@ if __name__ == "__main__":
     d['phase'] = 5*np.pi
     d['use'] = "H(w) = sum(num[k]*jw**k) /sum(den[k]*jw**k)*exp(j phase)"
 
-    np.save('ring_tf', [d])
+#    np.save('ring_tf', [d])
 
     freqs2 = np.linspace(0,500)
     s2 = 1j*2*np.pi*freqs2

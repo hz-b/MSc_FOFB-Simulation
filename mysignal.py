@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import division, print_function
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
@@ -19,24 +21,41 @@ def poly_from_sympy(xpr, symbol='s'):
     num, den = sy.simplify(xpr).as_numer_denom()  # expressions
     p_num_den = sy.poly(num, s), sy.poly(den, s)  # polynomials
     c_num_den = [sy.expand(p).all_coeffs() for p in p_num_den]  # coefficients
-    l_num, l_den = [sy.lambdify((), c)() for c in c_num_den]  # convert to floats
+
+    # convert to floats
+    l_num, l_den = [sy.lambdify((), c)() for c in c_num_den]
     return l_num, l_den
 
 
-def TF_from_signal(y, u, fs, plot=False, plottitle=''):
+def TF_from_signal(y, u, fs, method='correlation', plot=False, plottitle=''):
     if len(y.shape) == 1:
         y = y.reshape((1, y.size))
     M, N = y.shape
 
     H_all = np.zeros((M, int(N/2)), dtype=complex)
-    a = signal.correlate(u, u, "same")
     fr = np.fft.fftfreq(N, 1/fs)[:int(N/2)]
+
+    if method == "correlation":
+        a = signal.correlate(u, u, "same")
+    else:
+        a = u
 
     if plot:
         plt.figure()
     for k in range(M):
-        c = signal.correlate(y[k, :], u, "same")
-        H = np.fft.fft(c) / np.fft.fft(a)
+        if method == "correlation":
+            c = signal.correlate(y[k, :], u, "same")
+        else:
+            c = y[k, :]
+
+        A = np.fft.fft(a)
+        idx = np.where(A == 0)[0]
+
+        C = np.fft.fft(c)
+        C[idx] = 0
+        A[idx] = 1
+        H = C / A
+
         H = H[:int(N/2)]
         H_all[k, :] = H
 
@@ -54,6 +73,8 @@ def TF_from_signal(y, u, fs, plot=False, plottitle=''):
 
 
 class TF(signal.TransferFunction):
+    """ Transfer function
+    """
     def __init__(self, *args):
         if len(args) not in [2, 4]:
             raise ValueError("2 (num, den) or 4 (A, B, C, D) arguments "
@@ -61,9 +82,9 @@ class TF(signal.TransferFunction):
         if len(args) == 2:
             super().__init__(args[0], args[1])
         else:
-            A,B,C,D = args
-            n,d = signal.ss2tf(A,B,C,D)
-            super().__init__(n,d)
+            A, B, C, D = args
+            n, d = signal.ss2tf(A, B, C, D)
+            super().__init__(n, d)
 
     def __neg__(self):
         return TF(-self.num, self.den)
@@ -138,34 +159,50 @@ class TF(signal.TransferFunction):
         return poly_to_sympy(numz, denz, 'z')
 
     def apply_f(self, u, x, Ts):
+        if self.den.size == 1 and self.num.size == 1:
+            return u*self.num[0]/self.den[0], x
+
         A, B, C, D = signal.tf2ss(self.num, self.den)
         (A, B, C, D, _) = signal.cont2discrete((A, B, C, D), Ts,
                                                method='bilinear')
 
         x_vec = x.reshape((x.size, 1))
-        x1_vec = np.dot(A, x_vec) + B * u
-        y = np.dot(C, x_vec) + D * u
-        if y.imag > 0:
-            print('y has a real part {}'.format(y))
+        x1_vec = np.dot(A, x_vec) + B.dot(u)
+        y = np.dot(C, x_vec) + D.dot(u)
+        if abs(y.imag) > 0:
+            print('y is complex part {}'.format(y))
             print((A, B, C, D))
-        return y.real, np.array(x1_vec.reshape((x1_vec.size)))
+        return y.real[0, 0], np.array(x1_vec.reshape(x.shape))
 
-    def plotHw(self, w=None, ylabel=None):
+    def plotHw(self, w=None, ylabel=None, bode=False):
         w, H = self.freqresp(w)
+
+        if bode:
+            y = 20*np.log10(abs(H))
+            x = w
+            yscale = 'linear'
+            xlabel = r"Angular frequency $\omega$ [in rad/s]"
+        else:
+            y = abs(H)
+            x = w/2/np.pi
+            yscale = 'log'
+            xlabel = r"Frequency f [in Hz]"
+
         fig = plt.figure()
         plt.subplot(2, 1, 1)
-        plt.plot(w/(2*np.pi), np.abs(H))
+        plt.plot(x, y)
+        plt.yscale(yscale)
+        plt.xlabel(xlabel)
+
         plt.xscale('log')
-        plt.yscale('log')
         plt.grid(which="both")
-        plt.xlabel("Frequency [in Hz]")
         plt.ylabel(ylabel if ylabel is not None else "Amplitude")
 
         plt.subplot(2, 1, 2)
-        plt.plot(w/(2*np.pi), np.unwrap(np.angle(H)))
+        plt.plot(x, np.unwrap(np.angle(H)))
         plt.xscale('log')
         plt.grid(which="both")
-        plt.xlabel("Frequency [in Hz]")
+        plt.xlabel(xlabel)
         plt.ylabel("Phase")
         fig.subplots_adjust(hspace=.5)
 
@@ -187,9 +224,10 @@ class TransferFunction_1stOrder(TF):
 
             y = H(z) * x
             (1 + 2*a/Ts) * y[k] + (1 - 2*a/Ts) * y[k-1] = A * (x[k] + x[k-1])
-            y[k] = ( A * (x[k] + x[k-1]) - (1 - 2*a/Ts) * y[k-1] ) / (1 + 2*a/Ts)
+            y[k] = ( A * (x[k] + x[k-1]) - (1 - 2*a/Ts) * y[k-1] )/(1 + 2*a/Ts)
         """
-        y = (self.A * (xk_0 + xk_1) - (1 - 2*self.a/Ts) * yk_1 ) / (1 + 2*self.a/Ts)
+        y = ((self.A * (xk_0 + xk_1) - (1 - 2*self.a/Ts) * yk_1) /
+             (1 + 2*self.a/Ts))
         return y
 
 
@@ -199,13 +237,16 @@ class PID(TF):
         if I != 0:
             tf += TF([I], [1, 0])
         if D != 0:
-            tau_d = P/D
-            tf += TF([D, 0], [tau_d/8, 1])
+            tf += TF([D, 0], [D/8, 1])
         super().__init__(tf.num, tf.den)
 
         self.kP = P
         self.kI = I
         self.kD = D
 
-    def apply_f(self, e):
-        return self.kP*e[-1] + self.kD*(e[-1]-e[-2]) + self.kI*sum(e)
+    def apply_f(self, e, Ts):
+        return self.kP*e[-1] + self.kI*sum(e)*Ts + self.kD*(e[-1]-e[-2])/Ts
+
+    def apply_fw(self, e, x, Ts):
+        return TF.apply_f(self, e, x, Ts)
+
