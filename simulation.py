@@ -76,6 +76,7 @@ def model_1_delay(d_s, pid, H_dip, H_ring, delay=0, fs=1):
     f_ratio = 10
     fs_real = f_ratio*fs
     Ts_real = 1/fs_real
+    Ts = 1/fs
     t_real = np.arange(0, f_ratio*d_s.size) / fs_real
     t = np.arange(0, d_s.size) / fs
     delay_offset = math.ceil(delay*fs_real)
@@ -113,8 +114,8 @@ def model_1_delay(d_s, pid, H_dip, H_ring, delay=0, fs=1):
         if t_real[k] >= t[sample] and sample < t.size-1:
             sample += 1
             e_s[sample] = e[k]
-#            du_s[sample] = pid.apply_f(e_s[:sample+1], Ts)
-            du_s[sample], xpid = pid.apply_fw(e_s[sample], xpid, Ts)
+            du_s[sample] = pid.apply_f(e_s[:sample+1], Ts)
+#            du_s[sample], xpid = pid.apply_fw(e_s[sample], xpid, Ts)
 
             # Correction sent to PS
 #            u_s[sample] = u_s[sample-1] + Ts*du_s[sample]
@@ -137,7 +138,7 @@ def model_1_delay(d_s, pid, H_dip, H_ring, delay=0, fs=1):
     plt.plot(t_real, u, '-m', label='command (PID)')
     plt.plot(t_real, u_delay, '--c', label='delayed command (PID)')
     plt.plot(t_real, yd, '-r', label='output')
-    plt.plot(t_real, orbit, '--k', label='orbit')
+    plt.plot(t_real, orbit, '-k', label='orbit')
 
     plt.legend(loc='best')
     plt.title('With correction delay')
@@ -148,10 +149,10 @@ def model_1_delay(d_s, pid, H_dip, H_ring, delay=0, fs=1):
 if __name__ == "__main__":
 
     plt.ion()
-#    plt.close('all')
+    plt.close('all')
     fs = 150.
     Ts = 1/fs
-    t_max = .5
+    t_max = 60
 
     A = 3
     a = A / (2*np.pi*3)
@@ -166,9 +167,13 @@ if __name__ == "__main__":
 
     sA, sB, sC, sD = np.load('ss_param.npy')
     H_ring = ms.TF(sA, sB, sC, sD)
-    H_ring.num = H_ring.num.real
-#    H_ring = ms.TF([1],[1])
-    pid = ms.PID(4, 20, 0)
+    H_ring.num = -H_ring.num.real
+    pid = ms.PID(0, 0.8*fs, 0)
+
+    delay_calc = 1e-3  # 2e-3
+    delay_adc = 1e-4
+    delay_dac = 3e-4
+    delay = delay_calc + delay_adc + delay_dac
 
 #    S_coeff = H_ring.den[-1]/H_ring.num[-1]
 #    H = S_coeff*H_lp*H_dip*pid
@@ -181,75 +186,28 @@ if __name__ == "__main__":
     # Step
     amplitude = 0.02
 #    d = amplitude*np.piecewise(t, [t < 0.1, t >= 0.1, t > t_max-0.2], [0, 1, 0])
-    d = amplitude*np.piecewise(t, [t < 0.1, t >= 0.1], [0, 1])
+#    d = amplitude*np.piecewise(t, [t < 0.1, t >= 0.1], [0, 1])
     f1 = 1e-3
     f2 = 75
-#    f_lin = 2*f1*t+(f2-f1)/t[-1]*0.5*(t**2)
-#    f_exp = f1*t[-1]/np.log(f2/f1)*(np.exp(-t)-1)
-#    d = amplitude*np.sin(2*np.pi*f_exp)
+    f_func = 2*f1*t+(f2-f1)/t[-1]*0.5*(t**2)
+#    f_func = f1*Ts/np.log(f2/f1)*(np.exp(-t)-1)
+    d = amplitude*np.sin(2*np.pi*f_func)
 
     # Sinus
 #    d = amplitude*np.sin(2*np.pi*t*2.5)
 #    y, x, fs_r = model_1(d, pid, H, fs)
 #    ms.TF_from_signal(y, x, fs_r, plottitle='no delay')
 
-#    y =[]
-#    x = np.zeros(G.den.size-1)
-#    for k in range(d.size):
-#        y0, x = G.apply_f(d[k], x, Ts)
-#        y.append(y0)
-#    plt.figure()
-#    plt.plot(t, d)
-#    plt.plot(t, y, '-r')
+#    H_ring = ms.TF([1],[1])
+#    H_dip.num *= H_dip.den[-1]/H_dip.num[-1]
+    H_dip =  ms.TF([1], [1])
+#    delay = 0
+#    H_ring.plotStep()
+#    H_dip.plotStep()
+#    H_dip.plotHw()
 
-    delay_calc = 1e-3  # 2e-3
-    delay_adc = 1e-4
-    delay_dac = 3e-4
-    delay = delay_calc + delay_adc + delay_dac
 
     y, x, fs_r = model_1_delay(d, pid, H_dip, H_ring, delay, fs)
-# ------------------------------
-#    r = 0
-#    y = np.zeros(t.size)
-#    yd = np.zeros(t.size)
-#    orbit = np.zeros(t.size)
-#    u = np.zeros(t.size)
-#    u_delay = np.zeros(t.size)
-#    e = np.zeros(t.size)
-#
-#    # Init sample time variables
-#    u_s = np.zeros(t.size)
-#    du_s = np.zeros(t.size)
-#    e_s = np.zeros(t.size)
-#
-#    xring = np.zeros(H_ring.den.size-1)
-#    xcor = np.zeros(H_dip.den.size-1)
-#    xlp = np.zeros(H_lp.den.size-1)
-#    x = np.zeros(pid.den.size - 1 )
-#    for k in range(1, t.size):
-#        # S* x delta_x
-#
-#        yd[k] = y[k-1] + d[k]
-#
-#        # Response of the ring
-#        orbit[k], xring = H_ring.apply_f(yd[k], xring, Ts)
-#        dorbit, xlp = H_lp.apply_f(orbit[k]-r, xlp, Ts)
-#        e[k] = Ts*S_coeff*(dorbit)
-#        du_s[k] = pid.apply_f(e[:k+1],Ts)
-##        du_s[k], x = pid.apply_fw(e[k],x ,Ts)
-##         Correction sent to PS
-#        u[k] = u[k-1] - du_s[k]
-#        # Corrector magnet propagation
-#        y[k], xcor = H_dip.apply_f(u[k], xcor, Ts)
-#
-#    plt.figure()
-#    plt.plot(t, d, label='perturbation')
-#    plt.plot(np.linspace(0, t_max-Ts, fs*t_max), du_s, label='command (PID)')
-#    plt.plot(t, u, '-m', label='command (PID) after loop')
-#    plt.plot(t, yd, '-r', label='output')
-#    plt.plot(t, orbit, '--k', label='orbit')
-#    plt.legend()
 
-
-#    ms.TF_from_signal(y, x, fs_r, method='fft', plot=True, plottitle='with delay')
+    ms.TF_from_signal(y, x, fs_r, method='fft', plot=True, plottitle='with delay')
 

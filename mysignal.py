@@ -60,15 +60,19 @@ def TF_from_signal(y, u, fs, method='correlation', plot=False, plottitle=''):
         H_all[k, :] = H
 
         if plot:
-            plt.subplot(211)
-            plt.plot(fr, abs(H))
-            plt.xscale('log')
-            plt.yscale('log')
-            plt.grid(which="both")
-            plt.subplot(212)
-            plt.plot(fr, np.unwrap(np.angle(H)))
-            plt.xscale('log')
-            plt.grid(which="both")
+            ax1 = plt.subplot(211)
+            ax1.plot(fr, abs(H))
+            ax2 = plt.subplot(212)
+            ax2.plot(fr, np.unwrap(np.angle(H)))
+
+    if plot:
+        ax1.set_xscale('log')
+        ax1.set_yscale('log')
+        ax1.grid(which="both")
+        ax2.set_xscale('log')
+        ax2.grid(which="both")
+        ax1.set_title(plottitle)
+
     return H_all, fr
 
 
@@ -206,6 +210,21 @@ class TF(signal.TransferFunction):
         plt.ylabel("Phase")
         fig.subplots_adjust(hspace=.5)
 
+    def plotStep(self, ylabel=None):
+        t, y = self.step()
+
+        n_zeros = int(t.size * 0.1)
+        T = t[1]
+
+        r = np.concatenate((np.zeros(n_zeros), np.ones(t.size)))
+        t = np.concatenate(((np.arange(n_zeros)-n_zeros)*T, t))
+        y = np.concatenate((np.zeros(n_zeros), y))
+
+        plt.figure()
+        plt.plot(t, r)
+        plt.plot(t, y)
+        plt.xlabel('Time [in s]')
+        plt.ylabel(ylabel if ylabel is not None else "Amplitude")
 
 class TransferFunction_1stOrder(TF):
     def __init__(self, A, a):

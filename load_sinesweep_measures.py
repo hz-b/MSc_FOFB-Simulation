@@ -33,10 +33,10 @@ if __name__ == "__main__":
     freqs = np.fft.fftfreq(N, 1/fs)[:int(N/2)]
 
     plottitle = lambda cm, bpm: "1st {} corrector, all {} bpms shown".format(cm, bpm)
-    H, f = ms.TF_from_signal(xx[3,:], u, fs, False, plottitle('x','x'))
-#    ms.TF_from_signal(xy, u, fs, plottitle('x','y'))
-#    ms.TF_from_signal(yx, u, fs, plottitle('y','x'))
-#    ms.TF_from_signal(yy, u, fs, plottitle('y','y'))
+    H, f = ms.TF_from_signal(xx[3,:], u, fs, 'correlation', True, plottitle('x','x'))
+    ms.TF_from_signal(xy, u, fs, 'correlation', True, plottitle('x','y'))
+    ms.TF_from_signal(yx, u, fs, 'correlation', True, plottitle('y','x'))
+    ms.TF_from_signal(yy, u, fs, 'correlation', True, plottitle('y','y'))
 
     def tf(s, b0,b1,b2,a1,a2,a3,a4, a5,a6):
         b = b0 + b1*s + b2*s**2
