@@ -95,50 +95,50 @@ class TF(signal.TransferFunction):
 
     def __mul__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(self_s * other_s)
 
     def __truediv__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(self_s / other_s)
 
     def __rtruediv__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(other_s / self_s)
 
     def __add__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(self_s + other_s)
 
     def __sub__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(self_s - other_s)
 
     def __rsub__(self, other):
         self_s = self.to_sympy()
-        if type(other) in [int, float]:
-            other_s = other
-        else:
+        if type(other) is type(self):
             other_s = other.to_sympy()
+        else:
+            other_s = other
         return TF.from_sympy(other_s - self_s)
 
     # symmetric behaviour for commutative operators
@@ -165,18 +165,39 @@ class TF(signal.TransferFunction):
     def apply_f(self, u, x, Ts):
         if self.den.size == 1 and self.num.size == 1:
             return u*self.num[0]/self.den[0], x
+        if type(u) is not np.ndarray:
+            u = np.array([[u]])
+        else:
+            if u.ndim == 1:
+                u = u.reshape((u.size, 1))
+            elif u.shape[1] != 1:
+                u = u.T
 
-        A, B, C, D = signal.tf2ss(self.num, self.den)
-        (A, B, C, D, _) = signal.cont2discrete((A, B, C, D), Ts,
+        A_t, B_t, C_t, D_t = signal.tf2ss(self.num, self.den)
+        (A, B, C, D, _) = signal.cont2discrete((A_t, B_t, C_t, D_t), Ts,
                                                method='bilinear')
 
+        A = np.kron(np.eye(u.size), A)
+        B = np.kron(np.eye(u.size), B)
+        C = np.kron(np.eye(u.size), C)
+        D = np.kron(np.eye(u.size), D)
+
         x_vec = x.reshape((x.size, 1))
-        x1_vec = np.dot(A, x_vec) + B.dot(u)
-        y = np.dot(C, x_vec) + D.dot(u)
-        if abs(y.imag) > 0:
-            print('y is complex part {}'.format(y))
+        x1_vec = A.dot(x_vec) + B.dot(u)
+        y = C.dot(x_vec) + D.dot(u)
+
+        # put back in same order
+        if type(u) is not np.ndarray:
+            y = y[0,0]
+        else:
+            if u.ndim == 1:
+                y = y.reshape(y.size)
+            elif u.shape[1] != 1:
+                y = y.T
+        if np.any(abs(y.imag) > 0):
+            print('y has complex part {}'.format(y))
             print((A, B, C, D))
-        return y.real[0, 0], np.array(x1_vec.reshape(x.shape))
+        return y.real, np.array(x1_vec.reshape(x.shape))
 
     def plotHw(self, w=None, ylabel=None, bode=False):
         w, H = self.freqresp(w)
@@ -226,29 +247,6 @@ class TF(signal.TransferFunction):
         plt.xlabel('Time [in s]')
         plt.ylabel(ylabel if ylabel is not None else "Amplitude")
 
-class TransferFunction_1stOrder(TF):
-    def __init__(self, A, a):
-        super().__init__([A], [1, a])
-        self.A = A
-        self.a = a
-
-    def apply_f(self, xk_0, xk_1, yk_1, Ts):
-        """
-            H(s) = A / (1 + a*s)
-            H(z) = A / (1 + a * 2/Ts * [z-1]/[z+1])
-                 = A * (z+1) / ( [z+1] + 2*a/Ts * [z-1] )
-                 = A * (z+1) / ( [1 - 2*a/Ts] + [1 + 2*a/Ts]*z )
-
-            H(z) = A * (1 + z^{-1}) / ( [1 + 2*a/Ts] + [1 - 2*a/Ts] * z^{-1} )
-
-            y = H(z) * x
-            (1 + 2*a/Ts) * y[k] + (1 - 2*a/Ts) * y[k-1] = A * (x[k] + x[k-1])
-            y[k] = ( A * (x[k] + x[k-1]) - (1 - 2*a/Ts) * y[k-1] )/(1 + 2*a/Ts)
-        """
-        y = ((self.A * (xk_0 + xk_1) - (1 - 2*self.a/Ts) * yk_1) /
-             (1 + 2*self.a/Ts))
-        return y
-
 
 class PID(TF):
     def __init__(self, P, I, D):
@@ -264,8 +262,8 @@ class PID(TF):
         self.kD = D
 
     def apply_f(self, e, Ts):
-        return self.kP*e[-1] + self.kI*sum(e)*Ts + self.kD*(e[-1]-e[-2])/Ts
+        return (self.kP*e[:, -1] + self.kI*np.sum(e, axis=1)*Ts
+                                 + self.kD*(e[:, -1]-e[:, -2])/Ts)
 
     def apply_fw(self, e, x, Ts):
         return TF.apply_f(self, e, x, Ts)
-

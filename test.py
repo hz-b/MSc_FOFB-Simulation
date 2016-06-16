@@ -51,9 +51,7 @@ x = np.zeros((h.den.size-1,1))
 
 (a, b, c, d, _) = signal.cont2discrete((h.A, h.B, h.C, h.D), 1/150,
                                        method='bilinear')
-
 plt.legend()
-
 
 #--- EASY PID ---#
 fs = 150
@@ -75,5 +73,4 @@ for k in range(1, N):
 plt.figure()
 plt.plot(t, d)
 plt.plot(t, y, '-v')
-
 
