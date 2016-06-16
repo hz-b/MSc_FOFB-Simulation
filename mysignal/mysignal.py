@@ -199,7 +199,7 @@ class TF(signal.TransferFunction):
             print((A, B, C, D))
         return y.real, np.array(x1_vec.reshape(x.shape))
 
-    def plotHw(self, w=None, ylabel=None, bode=False):
+    def plot_hw(self, w=None, ylabel=None, bode=False):
         w, H = self.freqresp(w)
 
         if bode:
@@ -231,7 +231,7 @@ class TF(signal.TransferFunction):
         plt.ylabel("Phase")
         fig.subplots_adjust(hspace=.5)
 
-    def plotStep(self, ylabel=None):
+    def plot_step(self, ylabel=None):
         t, y = self.step()
 
         n_zeros = int(t.size * 0.1)

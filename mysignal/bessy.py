@@ -112,12 +112,13 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
         orbit[:, k] = S.dot(normalized_orbit).reshape(BPM_nb)
 
     if plot:
+        idx = np.argmax(np.linalg.norm(orbit, axis=1))
         plt.figure()
         plt.plot(t_real, d.T, label='perturbation')
-        plt.plot(t_real, u.T, '-m', label='command (PID)')
-        plt.plot(t_real, u_delay.T, '--c', label='delayed command (PID)')
-        plt.plot(t_real, yd.T, '-r', label='output')
-        plt.plot(t_real, orbit.T, '-k', label='orbit')
+        plt.plot(t_real, u[0,:].T, '-m', label='command (PID)')
+        plt.plot(t_real, u_delay[0,:].T, '--c', label='delayed command (PID)')
+        plt.plot(t_real, yd[0,:].T, '-r', label='output')
+        plt.plot(t_real, orbit[idx, :].T, '-k', label='orbit')
 
 #        plt.legend(loc='best')
         plt.title('Simulation result')

@@ -15,7 +15,6 @@ if __name__ == "__main__":
     fs = 150.
     Ts = 1/fs
     t_max = 60
-
     t = np.linspace(0, t_max-Ts, fs*t_max)
 
     H_dip = ms.bessy.corrector_order1()
@@ -34,8 +33,8 @@ if __name__ == "__main__":
     H_ring.num = H_ring.num.real
     H_ring.num *= H_ring.den[-1]/H_ring.num[-1]
     H_ring.num[0] = 0
-#    pid = ms.PID(0.6, 1.0*fs, 0.3/fs)
-    pid = ms.PID(0, 0.8*fs, 0./fs)
+    pid = ms.PID(0.6, 1.0*fs, 0.3/fs)
+#    pid = ms.PID(0, 0.8*fs, 0./fs)
 
     delay_calc = 1e-3  # 2e-3
     delay_adc = 1e-4
@@ -63,14 +62,14 @@ if __name__ == "__main__":
 #    H_ring = ms.TF([1],[1])
 #    H_dip.num *= H_dip.den[-1]/H_dip.num[-1]
     H_dip = ms.TF([1], [1])
-    delay = 0
-    H_ring.plotStep()
+#    delay = 0
+    H_ring.plot_step()
 #    H_dip.plotStep()
-    H_ring.plotHw(np.logspace(-1,10))
+    H_ring.plot_hw(np.logspace(-1,10))
 
 #    H_dip.plotHw()
 
     y, x, fs_r = ms.bessy.simulate(d, pid, Sx, H_lp, H_dip, H_ring, delay, fs, True)
 
-    ms.TF_from_signal(y, x, fs_r, method='fft', plot=True, plottitle='with delay')
+    ms.TF_from_signal(y[0,:], x, fs_r, method='fft', plot=True, plottitle='with delay')
 
