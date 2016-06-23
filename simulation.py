@@ -2,19 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from math import pi
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 
 import mysignal as ms
-import search_kicks.tools as sktools
 
 if __name__ == "__main__":
 
-    plt.ion()
     plt.close('all')
     fs = 150.
     Ts = 1/fs
-    t_max = 60
+    t_max = .3
     t = np.linspace(0, t_max-Ts, fs*t_max)
 
     H_dip = ms.bessy.corrector_order1()
@@ -25,7 +24,7 @@ if __name__ == "__main__":
     Sx = Sx / w
 #    Sx = Sx[5:, 5:]
 #    Sx = Sx[0, 0].reshape((1,1))
-#    Sx = Sx[:, 0].reshape((Sx.shape[0],1))
+    Sx = Sx[:, 0].reshape((Sx.shape[0],1))
     H_lp = ms.TF([1], [1/wc**2, 1.4142/wc, 1])  # Low pass butterworth
 
     sA, sB, sC, sD = np.load('ss_param.npy')
@@ -48,7 +47,7 @@ if __name__ == "__main__":
 #    G.plotHw(w=np.logspace(-1, 2)*2*np.pi, bode=True)
 
     amplitude = 0.02
-    perturbation = 'sinesweep'
+    perturbation = 'step'
     if perturbation == 'step':
         d = ms.inputs.step(t, 0.1, amplitude)
     elif perturbation == 'sinesweep':
@@ -63,13 +62,22 @@ if __name__ == "__main__":
 #    H_dip.num *= H_dip.den[-1]/H_dip.num[-1]
     H_dip = ms.TF([1], [1])
 #    delay = 0
-    H_ring.plot_step()
+#    H_ring.plot_step()
 #    H_dip.plotStep()
-    H_ring.plot_hw(np.logspace(-1,10))
-
+#    H_ring.plot_hw(np.logspace(-1, 10))
+    Kcor = ms.TF([1,.8*fs], [1,0])*ms.TF([1,1], [1/10,1])
 #    H_dip.plotHw()
-
+    st= time.time()
     y, x, fs_r = ms.bessy.simulate(d, pid, Sx, H_lp, H_dip, H_ring, delay, fs, True)
 
-    ms.TF_from_signal(y[0,:], x, fs_r, method='fft', plot=True, plottitle='with delay')
+#    y, x, fs_r = ms.bessy.simulate(d, Kcor, Sx, H_lp, H_dip, H_ring, delay, fs, True)
+    best_pid_by_hand = ms.PID(0.9,0.5*fs, 0.15/fs)
+#    best_pid_by_hand = ms.TF([1, 0.2*80],[1,0])*ms.TF([1/4000,1],[1/400,1])
+    y, x, fs_r = ms.bessy.simulate(d, best_pid_by_hand, Sx, H_lp, H_dip, H_ring, delay, fs, True)
 
+
+    print("{} s: needs {} s".format(t_max, time.time()-st))
+
+
+    ms.TF_from_signal(y[0,:], x, fs_r, method='fft', plot=True, plottitle='with delay')
+    plt.show()

@@ -166,7 +166,7 @@ class TF(signal.TransferFunction):
         if self.den.size == 1 and self.num.size == 1:
             return u*self.num[0]/self.den[0], x
         if type(u) is not np.ndarray:
-            u = np.array([[u]])
+            u = np.array([[u]]).T
         else:
             if u.ndim == 1:
                 u = u.reshape((u.size, 1))
@@ -188,7 +188,7 @@ class TF(signal.TransferFunction):
 
         # put back in same order
         if type(u) is not np.ndarray:
-            y = y[0,0]
+            y = y[0, 0]
         else:
             if u.ndim == 1:
                 y = y.reshape(y.size)
@@ -197,7 +197,7 @@ class TF(signal.TransferFunction):
         if np.any(abs(y.imag) > 0):
             print('y has complex part {}'.format(y))
             print((A, B, C, D))
-        return y.real, np.array(x1_vec.reshape(x.shape))
+        return y.reshape(y.size).real, x1_vec.reshape(x.shape)
 
     def plot_hw(self, w=None, ylabel=None, bode=False):
         w, H = self.freqresp(w)
@@ -261,9 +261,9 @@ class PID(TF):
         self.kI = I
         self.kD = D
 
-    def apply_f(self, e, Ts):
+    def apply_fd(self, e, Ts):
         return (self.kP*e[:, -1] + self.kI*np.sum(e, axis=1)*Ts
                                  + self.kD*(e[:, -1]-e[:, -2])/Ts)
 
-    def apply_fw(self, e, x, Ts):
+    def apply_f(self, e, x, Ts):
         return TF.apply_f(self, e, x, Ts)
