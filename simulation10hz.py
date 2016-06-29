@@ -6,6 +6,8 @@
 @author: Olivier CHURLAUD <olivier.churlaud@helmholtz-berlin.de>
 """
 
+from __future__ import division, print_function, unicode_literals
+
 import copy
 import matplotlib.pyplot as plt
 import numpy as np
@@ -47,13 +49,19 @@ Syy = np.load('SmatY.npy')
 Sxx_inv = sktools.maths.inverse_with_svd(Sxx, 48)
 Syy_inv = sktools.maths.inverse_with_svd(Syy, 36)
 
-BPMx = np.zeros((104, N))+cm
-BPMy = np.zeros((104, N))+cm
+BPMx = np.zeros((104, N))
+BPMx += cm
+BPMy = np.zeros((104, N))
 CMx = Sxx_inv.dot(BPMx)
 CMy = Syy_inv.dot(BPMy)
+#CMx = np.zeros((Sxx.shape[1], N))
+#CMy = np.zeros((Syy.shape[1], N))
+
 #CMx[0, :] = 1e-4*np.cos(2*np.pi*10*np.arange(N)/Fs + 1.1)
 #BPMx = Sxx.dot(CMx)
 #BPMy = Syy.dot(CMy)
+plt.figure()
+plt.plot(abs(np.fft.fft(CMx[0,:])))
 
 o = sktools.io.OrbitData(BPMx=BPMx,
                          BPMy=BPMy,
@@ -66,11 +74,16 @@ SAMPLE_NB = o.sample_number
 #o.BPMy = o.BPMy[:-1,:]
 
 
-acosX, asinX = sktools.maths.extract_sin_cos(o.BPMx, fs=150., f=10.)
-acosY, asinY  = sktools.maths.extract_sin_cos(o.BPMy, fs=150., f=10.)
+#acosX, asinX = sktools.maths.extract_sin_cos(o.BPMx, fs=150., f=10.)
+#acosY, asinY  = sktools.maths.extract_sin_cos(o.BPMy, fs=150., f=10.)
+#valuesX = acosX - 1j*asinX
+#valuesY = acosY - 1j*asinY
 
-valuesX = acosX - 1j*asinX
-valuesY = acosY - 1j*asinY
+aX, pX = sktools.maths.extract_sin_cos(o.BPMx, fs=150., f=10., output_format='polar')
+aY, pY = sktools.maths.extract_sin_cos(o.BPMy, fs=150., f=10., output_format='polar')
+
+valuesX = aX*np.exp(1j*pX)
+valuesY = aY*np.exp(1j*pY)
 CorrX = np.dot(Sxx_inv, valuesX)
 CorrY = np.dot(Syy_inv, valuesY)
 ampX = np.abs(CorrX)
@@ -109,13 +122,19 @@ for k in range(SAMPLE_NB):
 
 b = copy.deepcopy(o)
 print(max(b.CMx[0,:]))
+print(max(b.CMy[0,:]))
+
 print(max(ex[0,:]))
 b.CMx -= ex
 b.CMy -= ey
+
 for k in range(SAMPLE_NB):
     b.BPMx[:, k] = np.dot(Sxx, b.CMx[:,k])
     b.BPMy[:, k] = np.dot(Syy, b.CMy[:,k])
-
+print(max(b.CMx[0,:]))
+print(max(b.CMy[0,:]))
+print(max(b.BPMx[0,:]))
+print(max(b.BPMy[0,:]))
 plt.figure('origin')
 o.plot_fft(0)
 plt.figure('dynam')

@@ -3,8 +3,8 @@ from __future__ import division, print_function
 import numpy as np
 
 
-def step(t, t0, amplitude=1):
-    return amplitude*np.piecewise(t, [t < t0, t >= t0], [0, 1])
+def step(t, t0):
+    return np.piecewise(t, [t < t0, t >= t0], [0, 1])
 
 
 def sinesweep(t, fmin, fmax, amplitude=1, which='linear'):
@@ -16,10 +16,10 @@ def sinesweep(t, fmin, fmax, amplitude=1, which='linear'):
         raise ValueError("Last argummet (which) should be 'exp' or 'linear', "
                          "'{}' given".format(which))
 
-    return amplitude*np.sin(2*np.pi*ft)
+    return np.sin(2*np.pi*ft)
 
 
-def impulse(t, t0, amplitude=1):
+def impulse(t, t0):
     d = np.zeros(t.size)
     d[np.argmin(abs(t-t0))] = 1
     return d

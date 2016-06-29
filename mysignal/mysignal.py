@@ -95,52 +95,39 @@ class TF(signal.TransferFunction):
 
     def __mul__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(self_s * other_s)
 
     def __truediv__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(self_s / other_s)
 
     def __rtruediv__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(other_s / self_s)
 
     def __add__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(self_s + other_s)
 
     def __sub__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(self_s - other_s)
 
     def __rsub__(self, other):
         self_s = self.to_sympy()
-        if type(other) is type(self):
-            other_s = other.to_sympy()
-        else:
-            other_s = other
+        other_s = self._check_other(other)
         return TF.from_sympy(other_s - self_s)
 
+    def _check_other(self, other):
+        if type(other) in [int, float, complex]:
+            return other
+        else:
+            return other.to_sympy()
     # symmetric behaviour for commutative operators
     __rmul__ = __mul__
     __radd__ = __add__
@@ -199,7 +186,7 @@ class TF(signal.TransferFunction):
             print((A, B, C, D))
         return y.reshape(y.size).real, x1_vec.reshape(x.shape)
 
-    def plot_hw(self, w=None, ylabel=None, bode=False):
+    def plot_hw(self, w=None, ylabel=None, bode=False, xscale='log', yscale='log'):
         w, H = self.freqresp(w)
 
         if bode:
@@ -208,9 +195,13 @@ class TF(signal.TransferFunction):
             yscale = 'linear'
             xlabel = r"Angular frequency $\omega$ [in rad/s]"
         else:
-            y = abs(H)
+            if yscale == 'db':
+                y = 20*np.log10(abs(H))
+                yscale = 'linear'
+            else:
+                y = abs(H)
+                yscale = 'log'
             x = w/2/np.pi
-            yscale = 'log'
             xlabel = r"Frequency f [in Hz]"
 
         fig = plt.figure()
@@ -219,16 +210,16 @@ class TF(signal.TransferFunction):
         plt.yscale(yscale)
         plt.xlabel(xlabel)
 
-        plt.xscale('log')
+        plt.xscale(xscale)
         plt.grid(which="both")
         plt.ylabel(ylabel if ylabel is not None else "Amplitude")
 
         plt.subplot(2, 1, 2)
-        plt.plot(x, np.unwrap(np.angle(H)))
-        plt.xscale('log')
+        plt.plot(x, np.unwrap(np.angle(H))*180/np.pi)
+        plt.xscale(xscale)
         plt.grid(which="both")
         plt.xlabel(xlabel)
-        plt.ylabel("Phase")
+        plt.ylabel("Phase [in deg]")
         fig.subplots_adjust(hspace=.5)
 
     def plot_step(self, ylabel=None):

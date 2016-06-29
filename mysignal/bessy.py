@@ -35,19 +35,19 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
     """
     The bloc diagram is the following:
     ::
-                        . . . . . . . . . . . . . . . . . .
-                        . mBox                    +---+   .
-                        . Fs=150Hz             +-| T |-+ .
-                        .                       | +---+ | .                              | d
-     r=0  -     +----+  . +----+ e  +-----+ du  v       | . u +-------+ ud  +------+  y  v    +-------+
-      ---->(+)->| -\ |--->| S* |--->| PID |--->(+)------+---->| delay |---->| Hdip |--->(+)-->| Hring |--+--> orbit
-            ^   +----+  . +----+    +-----+  -            .   +-------+     +------+       yd +-------+  |
-            |           . . . . . . . . . . . . . . . . . .                                              |
-            |                                                                                            |
-            +--------------------------------------------------------------------------------------------+
+                        . . . . . . . . . . .
+                        . mBox              .
+                        . Fs=150Hz          .
+                        .                   .                              | d
+     r=0        +----+  . +----+ e  +-----+ . u +-------+ ud  +------+  y  v    +-------+
+      ---->(+)->| -\ |--->| S* |--->| PID |---->| delay |---->| Hdip |--->(+)-->| Hring |--+--> orbit
+          - ^   +----+  . +----+    +-----+ . - +-------+     +------+       yd +-------+  |
+            |           . . . . . . . . . . .                                              |
+            |                                                                              |
+            +------------------------------------------------------------------------------+
                orbit
 
-       ---Real-time----> <---------Sampled-time-----------> <--Real-time -------
+       ---Real-time----> <--Sampled-time---> <--Real-time -------
     """
 
     f_ratio = 10
@@ -99,7 +99,6 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
             du_s[:, sample], xpid = pid.apply_f(e_s[:, sample], xpid, Ts)
 
             # Correction sent to PS
-#            u_s[sample] = u_s[sample-1] + Ts*du_s[sample]
         e[:, k] = e_s[:, sample]
         u[:, k] = du_s[:, sample]
 
@@ -124,7 +123,7 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
         plt.plot(t_real, yd[0, :].T, '-r', label='output')
         plt.plot(t_real, orbit[idx, :].T, '-k', label='orbit')
 
-#        plt.legend(loc='best')
+        plt.legend(loc='best')
         plt.title('Simulation result')
 
     return yd, d, fs_real
@@ -258,48 +257,28 @@ def simulate_fast(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
     G = Mdip.dot(Mdelay.dot(interpol(t.size, t_real.size).dot(Mpid.dot(S_inv.dot(decimate(t_real.size, t.size))))))
     Mring.dot(np.inv((np.eye((t_real.size, t_real.size)) - G.dot(Mring))))
 
-#
-#    sample = 0
-#    for k in range(1, t_real.size):
-#        d[k] = d_s[sample]
-#
-#        # S* x delta_x
-#        dorbit, xlp = H_lp.apply_f(r-orbit[:, k-1], xlp, Ts_real)
-#
-#        if t_real[k] >= t[sample] and sample < t.size-1:
-#            sample += 1
-#            e_s[:, sample] = S_inv.dot(dorbit).reshape(CM_nb)
-#
-##            du_s[:, sample] = pid.apply_f(e_s[:, :sample+1], Ts)
-#            du_s[:, sample], xpid = pid.apply_fw(e_s[:, sample], xpid, Ts)
-#
-#            # Correction sent to PS
-##            u_s[sample] = u_s[sample-1] + Ts*du_s[sample]
-#        e[:, k] = e_s[:, sample]
-#        u[:, k] = du_s[:, sample]
-#
-#        # Time for computation/PS
-#        if k >= delay_offset:
-#            u_delay[:, k] = u[:, k-delay_offset]
-#
-#        # Corrector magnet propagation
-#        y[:, k], xcor = H_dip.apply_f(u_delay[:, k], xcor, Ts_real)
-#        yd[:, k] = y[:, k] + d[k]
-#
-#        # Response of the ring
-#        normalized_orbit, xring = H_ring.apply_f(yd[:, k], xring, Ts_real)
-#        orbit[:, k] = S.dot(normalized_orbit).reshape(BPM_nb)
-#
-#    if plot:
-#        idx = np.argmax(np.linalg.norm(orbit, axis=1))
-#        plt.figure()
-#        plt.plot(t_real, d.T, label='perturbation')
-#        plt.plot(t_real, u[0, :].T, '-m', label='command (PID)')
-#        plt.plot(t_real, u_delay[0, :].T, '--c', label='delayed command (PID)')
-#        plt.plot(t_real, yd[0, :].T, '-r', label='output')
-#        plt.plot(t_real, orbit[idx, :].T, '-k', label='orbit')
-#
-##        plt.legend(loc='best')
-#        plt.title('Simulation result')
-#
-#    return yd, d, fs_real
+
+def real_perturbation(t):
+    N = t.size
+    Fs = 1/(t[1]-t[0])
+    freqs = np.fft.fftfreq(N, 1/Fs)
+    freqs_half = freqs[:N//2+1]
+    cm_fft = 5*np.random.random(N//2+1)*np.exp(1j*2*np.pi*np.random.random(N//2+1))
+
+    idxmin = np.argmin(abs(freqs_half - 9))
+    idx20 = np.argmin(abs(freqs_half - 20))
+    for k in range(idxmin, idx20):
+        cm_fft[k] = 0.1*cm_fft[k]*(5 - (freqs_half[k] - 11)*(freqs_half[k] - 20))
+
+    nprand = np.random.random
+    cmph10 = 2*np.pi*nprand()
+    cm_fft[np.argmin(abs(freqs_half - 0))] = 0
+    cm_fft[np.argmin(abs(freqs_half - 10))] = 20*np.exp(1j*cmph10)
+    cm_fft[np.argmin(abs(freqs_half - 50))] = 30*np.exp(1j*2*np.pi*nprand())
+    cm_fft[-1] = 0
+
+    cm_fft = np.concatenate((cm_fft[:-1], np.flipud(cm_fft.conjugate())[:-1]))
+    cm_fft *= N/2/np.max(np.abs(cm_fft))
+    cm = np.fft.ifft(cm_fft).real
+
+    return cm
