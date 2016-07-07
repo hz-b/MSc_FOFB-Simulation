@@ -6,12 +6,17 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import control
+import seaborn as sns
+sns.set_style('ticks')
 
+import sys
+sys.path.insert(0, '../search_kicks')
 import mysignal as ms
 
 if __name__ == "__main__":
 
     plt.close('all')
+
     fs = 150.
     Ts = 1/fs
     t_max = 3
@@ -32,7 +37,22 @@ if __name__ == "__main__":
     H_ring = ms.TF(sA, sB, sC, sD)
     H_ring.num = H_ring.num.real
     H_ring.num *= H_ring.den[-1]/H_ring.num[-1]
+#    H_ring.plot_hw(np.logspace(-1, 4)*2*pi)
+#    sns.despine()
+#    plt.savefig('ctl_id_3z.pdf')
+#    H_ring.plot_step()
+#    sns.despine()
+#    plt.grid('on')
+#    plt.savefig('ctl_id_3z_step.pdf')
     H_ring.num[0] = 0
+#    H_ring.plot_hw(np.logspace(-1, 4)*2*pi)
+#    sns.despine()
+#    plt.savefig('ctl_id_2z.pdf')
+#    H_ring.plot_step()
+#    plt.ylim(ymax=1.1)
+#    sns.despine()
+#    plt.grid('on')
+#    plt.savefig('ctl_id_2z_step.pdf')
 #    pid = ms.PID(0.6, 1.0*fs, 0.3/fs)
     pid = ms.PID(0, .8*fs, 0./fs)
 
@@ -44,10 +64,9 @@ if __name__ == "__main__":
     d = ms.TF(*control.pade(delay))
     H = pid*d*H_lp
 
-
 #    H = ms.PID(0, -0.8, 0)
     G = H_ring /(1 + H*H_ring)
-    G.plot_hw(w=np.linspace(0.0001, 75)*2*np.pi, bode=False, xscale='linear', yscale='db')
+#    G.plot_hw(w=np.linspace(0.0001, 75)*2*np.pi, bode=False, xscale='linear', yscale='db')
 #
 #    amplitude = 0.02
 #    perturbation = 'real'
