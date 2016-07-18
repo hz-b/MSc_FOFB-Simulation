@@ -31,7 +31,7 @@ def corrector_order1():
     return ms.TF([A], [a, 1])
 
 
-def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
+def simulate(d_s, K, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
     """
     The bloc diagram is the following:
     ::
@@ -40,7 +40,7 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
                         . Fs=150Hz          .
                         .                   .                              | d
      r=0        +----+  . +----+ e  +-----+ . u +-------+ ud  +------+  y  v    +-------+
-      ---->(+)->| -\ |--->| S* |--->| PID |---->| delay |---->| Hdip |--->(+)-->| Hring |--+--> orbit
+      ---->(+)->| -\ |--->| S* |--->| K   |---->| delay |---->| Hdip |--->(+)-->| Hring |--+--> orbit
           - ^   +----+  . +----+    +-----+ . - +-------+     +------+       yd +-------+  |
             |           . . . . . . . . . . .                                              |
             |                                                                              |
@@ -75,14 +75,14 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
     e = np.zeros((CM_nb, t_real.size))
 
     # Init sample time variables
-    u_s = np.zeros((CM_nb, t.size))
+
     du_s = np.zeros((CM_nb, t.size))
     e_s = np.zeros((CM_nb, t.size))
 
     xring = np.zeros(CM_nb*(H_ring.den.size-1))
     xcor = np.zeros(CM_nb*(H_dip.den.size-1))
     xlp = np.zeros(BPM_nb*(H_lp.den.size-1))
-    xpid = np.zeros(CM_nb*(pid.den.size-1))
+    xk = np.zeros(CM_nb*(K.den.size-1))
 
     sample = 0
     for k in range(1, t_real.size):
@@ -95,10 +95,9 @@ def simulate(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
             sample += 1
             e_s[:, sample] = S_inv.dot(dorbit).reshape(CM_nb)
 
-#            du_s[:, sample] = pid.apply_fd(e_s[:, :sample+1], Ts)
-            du_s[:, sample], xpid = pid.apply_f(e_s[:, sample], xpid, Ts)
+            du_s[:, sample], xk = K.apply_f(e_s[:, sample], xk, Ts)
 
-            # Correction sent to PS
+        # Correction sent to PS
         e[:, k] = e_s[:, sample]
         u[:, k] = du_s[:, sample]
 
@@ -196,66 +195,6 @@ def interpol(N_in, N_out):
     for k in range(N_in):
         M[k*ratio:(k+1)*ratio, k] = np.ones(ratio)
     return M
-
-
-def simulate_fast(d_s, pid, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
-    """
-    The bloc diagram is the following:
-    ::
-                        . . . . . . . . . . .
-                        . mBox              .
-                        . Fs=150Hz          .
-                        .                   .                              | d
-     r=0  -     +----+  . +----+ e  +-----+ . u +-------+ ud  +------+  y  v    +-------+
-      ---->(+)->| -\ |--->| S* |--->| PID |---->| delay |---->| Hdip |--->(+)-->| Hring |--+--> orbit
-            ^   +----+  . +----+    +-----+ .   +-------+     +------+       yd +-------+  |
-            |           . . . . . . . . . . .                                              |
-            |                                                                              |
-            +------------------------------------------------------------------------------+
-               orbit
-
-       ---Real-time----> <---Sampled-time---> <--Real-time -------
-    """
-
-    f_ratio = 10
-    fs_real = f_ratio*fs
-    Ts_real = 1/fs_real
-    Ts = 1/fs
-    t_real = np.arange(0, f_ratio*d_s.size) / fs_real
-    t = np.arange(0, d_s.size) / fs
-    delay_offset = math.ceil(delay*fs_real)
-
-    BPM_nb = S.shape[0]
-    CM_nb = S.shape[1]
-
-    svd_nb = min(S.shape[0], min(S.shape[1], 48))
-    S_inv = sktools.maths.inverse_with_svd(S, svd_nb)
-
-    # Init real time variables
-    r = 0
-    y = np.zeros((CM_nb, t_real.size))
-    yd = np.zeros((CM_nb, t_real.size))
-    orbit = np.zeros((BPM_nb, t_real.size))
-    u = np.zeros((CM_nb, t_real.size))
-    u_delay = np.zeros((CM_nb, t_real.size))
-    d = np.zeros(t_real.size)
-    e = np.zeros((CM_nb, t_real.size))
-
-    # Init sample time variables
-    u_s = np.zeros((CM_nb, t.size))
-    du_s = np.zeros((CM_nb, t.size))
-    e_s = np.zeros((CM_nb, t.size))
-
-    print('Mring')
-    Mring = control_toeplitz(H_ring, Ts_real, t_real.size)
-    print('Mdip')
-    Mdip = control_toeplitz(H_dip, Ts_real, t_real.size)
-    print('delay')
-    Mdelay = np.diag(np.ones(t_real.size-delay_offset), -delay_offset)
-    print('pid')
-    Mpid = control_toeplitz(pid, Ts, t.size)
-    G = Mdip.dot(Mdelay.dot(interpol(t.size, t_real.size).dot(Mpid.dot(S_inv.dot(decimate(t_real.size, t.size))))))
-    Mring.dot(np.inv((np.eye((t_real.size, t_real.size)) - G.dot(Mring))))
 
 
 def real_perturbation(t):

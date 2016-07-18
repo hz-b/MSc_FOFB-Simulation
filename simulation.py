@@ -6,6 +6,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import control
+from scipy.io import loadmat
 import seaborn as sns
 sns.set_style('ticks')
 
@@ -13,9 +14,25 @@ import sys
 sys.path.insert(0, '../search_kicks')
 import mysignal as ms
 
+def zefunc(K, fb):
+
+    st= time.time()
+    y, x, fs_r = ms.bessy.simulate(d, K, Sx, H_lp, H_dip, H_ring, delay, fs, False)
+    ffty = np.abs(np.fft.fft(y[0,:]))[:N//2]*2/N
+    ffty /= ffty[id50]
+    plt.plot(freqs,ffty, label=r"$f_b = {}$ Hz".format(fb))
+
+    print("{} s: needs {} s".format(t_max, time.time()-st))
+
+
 if __name__ == "__main__":
 
     plt.close('all')
+
+    corr_data = loadmat('correctors')
+
+    correctors = corr_data['correctors'][0,:]
+
 
     fs = 150.
     Ts = 1/fs
@@ -29,8 +46,9 @@ if __name__ == "__main__":
     w = np.std(Sx, 0)
     Sx = Sx / w
 #    Sx = Sx[5:, 5:]
-#    Sx = Sx[0, 0].reshape((1,1))
+#  Sx = Sx[0, 0].reshape((1,1))
     Sx = Sx[:, 0].reshape((Sx.shape[0],1))
+    Sx = np.array([[1]])
     H_lp = ms.TF([1], [1/wc**2, 1.4142/wc, 1])  # Low pass butterworth
 
     sA, sB, sC, sD = np.load('ss_param.npy')
@@ -61,51 +79,79 @@ if __name__ == "__main__":
     delay_dac = 0.5e-3
     delay = delay_calc + delay_adc + delay_dac
 
-    d = ms.TF(*control.pade(delay))
-    H = pid*d*H_lp
+    H_delay = ms.TF(*control.pade(delay))
+#    K = ms.PID(0.9,0.5*fs, 0.15/fs)
 
+#    H_delay = ms.TF([1],[1])
+#    H = pid*H_delay*H_lp
+
+    Hpid = pid*H_delay*H_lp
+    Gpid = H_ring /(1 + Hpid*H_ring)
+    Gpid.plot_hw(w=np.linspace(0.0001, 75)*2*np.pi, bode=False, xscale='linear', yscale='db')
+    amplitude = 1
+    perturbation = 'real'
+    if perturbation == 'step':
+        d = amplitude*ms.inputs.step(t, 0.1)
+    elif perturbation == 'sinesweep':
+        d = amplitude*ms.inputs.sinesweep(t, fmin=1e-3, fmax=75)
+    elif perturbation == 'sine':
+        fsin = 10
+        d = amplitude*np.sin(2*np.pi*t*fsin)
+    elif perturbation == "impulse":
+        d = amplitude*ms.inputs.impulse(t, 0.1)
+    elif perturbation == 'real':
+        d = amplitude*ms.bessy.real_perturbation(t)
+
+#    H_ring = ms.TF([1],[1])
+#    H_dip.num *= H_dip.den[-1]/H_dip.num[-1]
+    H_dip = ms.TF([1], [1])
+#    delay = 0
+#    H_ring.plot_step()
+#    H_dip.plotStep()
+#    H_ring.plot_hw(np.logspace(-1, 10))
+
+#    H_dip.plotHw()
+
+    freqs = np.fft.fftfreq(N, t[1])[:N//2]
+    id50 = np.argmin(abs(freqs-50))
+    plt.figure()
+#    plt.subplot(211)
+#    plt.plot(freqs, np.abs(np.fft.fft(d))[:N//2]*2/N)
+#    plt.title('Perturbation')
+#    plt.xlabel('Frequency [in Hz]')
+#    plt.ylabel('Amplitude (arbitrary unit)')
+#    plt.grid('on')
+#    plt.subplot(212)
+
+    for corrector in correctors[:-1:2]:
+        fb = corrector[0,0][0,0]
+        K = ms.TF(corrector[0,1][0,:], corrector[0,2][0,:])
+
+        zefunc(K,fb)
+        plt.draw()
+
+
+    plt.title(r'Output $x(t)$')
+    plt.xlabel('Frequency [in Hz]')
+    plt.ylabel('Amplitude (arbitrary unit)')
+    plt.legend(frameon=True, fancybox=True)
+    plt.tight_layout()
+    plt.grid('on')
+    sns.despine()
+
+    H = K*H_delay*H_lp
 #    H = ms.PID(0, -0.8, 0)
     G = H_ring /(1 + H*H_ring)
-#    G.plot_hw(w=np.linspace(0.0001, 75)*2*np.pi, bode=False, xscale='linear', yscale='db')
-#
-#    amplitude = 0.02
-#    perturbation = 'real'
-#    if perturbation == 'step':
-#        d = amplitude*ms.inputs.step(t, 0.1)
-#    elif perturbation == 'sinesweep':
-#        d = amplitude*ms.inputs.sinesweep(t, fmin=1e-3, fmax=75)
-#    elif perturbation == 'sine':
-#        fsin = 10
-#        d = amplitude*np.sin(2*np.pi*t*fsin)
-#    elif perturbation == "impulse":
-#        d = amplitude*ms.inputs.impulse(t, 0.1)
-#    elif perturbation == 'real':
-#        d = amplitude*ms.bessy.real_perturbation(t)
-#
-##    H_ring = ms.TF([1],[1])
-##    H_dip.num *= H_dip.den[-1]/H_dip.num[-1]
-#    H_dip = ms.TF([1], [1])
-##    delay = 0
-##    H_ring.plot_step()
-##    H_dip.plotStep()
-##    H_ring.plot_hw(np.logspace(-1, 10))
-#    Kcor = ms.TF([1,.8*fs], [1,0])*ms.TF([1,1], [1/10,1])
-##    H_dip.plotHw()
-#    st= time.time()
-#    y, x, fs_r = ms.bessy.simulate(d, pid, Sx, H_lp, H_dip, H_ring, delay, fs, True)
+    G.plot_hw(w=np.linspace(0.0001, 75)*2*np.pi, bode=False, xscale='linear', yscale='db')
+
+
+##    y, x, fs_r = ms.bessy.simulate(d, Kcor, Sx, H_lp, H_dip, H_ring, delay, fs, True)
+#    best_pid_by_hand = ms.PID(0.9,0.5*fs, 0.15/fs)
+##    best_pid_by_hand = ms.TF([1, 0.2*80],[1,0])*ms.TF([1/4000,1],[1/400,1])
+#    y, x, fs_r = ms.bessy.simulate(d, best_pid_by_hand, Sx, H_lp, H_dip, H_ring, delay, fs, True)
 #    plt.figure()
 #    plt.plot(np.fft.fftfreq(N, t[1])[:N//2], np.abs(np.fft.fft(y[0,:]))[:N//2])
-#    plt.xlabel('freq')
-#
-###    y, x, fs_r = ms.bessy.simulate(d, Kcor, Sx, H_lp, H_dip, H_ring, delay, fs, True)
-##    best_pid_by_hand = ms.PID(0.9,0.5*fs, 0.15/fs)
-###    best_pid_by_hand = ms.TF([1, 0.2*80],[1,0])*ms.TF([1/4000,1],[1/400,1])
-##    y, x, fs_r = ms.bessy.simulate(d, best_pid_by_hand, Sx, H_lp, H_dip, H_ring, delay, fs, True)
-##    plt.figure()
-##    plt.plot(np.fft.fftfreq(N, t[1])[:N//2], np.abs(np.fft.fft(y[0,:]))[:N//2])
-#
-#    print("{} s: needs {} s".format(t_max, time.time()-st))
-#
-#
-##    ms.TF_from_signal(y[0,:], x, fs_r, method='fft', plot=True, plottitle='with delay')
+
+
+#    ms.TF_from_signal(y[0,:], x, fs_r, method='fft', plot=True, plottitle='with delay')
     plt.show()
