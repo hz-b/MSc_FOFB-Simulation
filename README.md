@@ -12,8 +12,8 @@ You can find:
 
 ## Dependencies
 
-Scipy.signal, control.robust and search_kicks (see other MSc-related
-repositories for this.
+`scipy.signal`, `control.robust` and `search_kicks` (see other MSc-related
+repositories for the latter).
 
 ## License
 Licensed WTFPL http://www.wtfpl.net/.
