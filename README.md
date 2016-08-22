@@ -6,8 +6,8 @@ This is the repository I used to build my simulations.
 
 You can find:
 
-* at the root of the folder some Python and MATLAB scripts for TF identification, controller design and simulation.
-* in `data` the generatated/measured data
+* at the root of the folder: some Python and MATLAB scripts for TF identification, controller design and simulation.
+* in `data`: the generatated/measured data
 * the `mysignal` python module for signal processing
 
 ## Dependencies
