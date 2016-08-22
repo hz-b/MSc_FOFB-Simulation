@@ -1,7 +1,10 @@
+% Need of the vfit3 or the matrix fitting MatrixFittingToolbox
+% https://www.sintef.no/projectweb/vectfit/downloads/
+
 close all
 clear all
 
-FILE = 'tf.mat';
+FILE = 'data/tf.mat';
 
 addpath('../MatrixFittingToolbox');
 
@@ -56,4 +59,4 @@ H = tf(1,den);
 figure()
 loglog(w,abs(reshape(H,1,numel(H))))
 
-%save('ss_parameters', 'A','B','C','D')
+%save('data/ss_parameters', 'A','B','C','D')

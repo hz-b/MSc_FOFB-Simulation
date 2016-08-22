@@ -1,4 +1,7 @@
-load ss_parameters;
+% Needs the robust control toolbox
+% Algorithm based on Skogestad, p60 (table 2.3)
+
+load 'data/ss_parameters';
 A = full(A);
 [Gnum,Gden] = ss2tf(A,B,C,D);
 
@@ -19,7 +22,6 @@ for fb = 10:10:60
     %Wp = nd2sys(conv([1/sqrt(M) wb],[1/sqrt(M) wb]), conv([1 wb*sqrt(Am)],[1 wb*sqrt(Am)]));
     Wu = 1;
 
-
     systemnames = 'G Wp Wu';
     inputvar = '[r(1) ; u(1)]';
     outputvar = '[Wp; Wu; r-G]';
@@ -36,4 +38,4 @@ for fb = 10:10:60
     [num,\todo[inline]{CTL : Conclusion}den] = ss2tf(ca, cb, cc, cd);
     correctors = {correctors{:}, {fb,num,den}} ;
 end
-save('correctors', 'correctors');
+save('data/correctors', 'correctors');

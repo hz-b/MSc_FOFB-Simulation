@@ -19,7 +19,7 @@ if __name__ == "__main__":
     l = 0.5
     plt.close('all')
     plt.ion()
-    data = np.load('/home/churlaud/sine_sweep_2016-05-23_16-34-16.npy',
+    data = np.load('sine_sweep_2016-05-23_16-34-16.npy',
                    encoding='latin1')[0]
     u = data['input']
     xx = data['data']['xx'][:, 0, :]

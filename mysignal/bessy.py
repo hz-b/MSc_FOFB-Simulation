@@ -115,7 +115,7 @@ def simulate(d_s, K, S, H_lp, H_dip, H_ring, delay=0, fs=1, plot=False):
 
     if plot:
         idx = np.argmax(np.linalg.norm(orbit, axis=1))
-        plt.figure()
+        plt.figure(4,3)
         plt.plot(t_real, d.T, label='perturbation')
         plt.plot(t_real, u[0, :].T, '-m', label='command (PID)')
         plt.plot(t_real, u_delay[0, :].T, '--c', label='delayed command (PID)')

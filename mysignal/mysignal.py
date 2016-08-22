@@ -186,8 +186,9 @@ class TF(signal.TransferFunction):
             print((A, B, C, D))
         return y.reshape(y.size).real, x1_vec.reshape(x.shape)
 
-    def plot_hw(self, w=None, ylabel=None, bode=False, xscale='log', yscale='log'):
-        w, H = self.freqresp(w)
+    def plot_hw(self, w=None, ylabel=None, bode=False, xscale='log', yscale='log',
+                figsize=None):
+        w, H = signal.freqresp((self.num,self.den), w)
 
         if bode:
             y = 20*np.log10(abs(H))
@@ -204,13 +205,13 @@ class TF(signal.TransferFunction):
             x = w/2/np.pi
             xlabel = r"Frequency f [in Hz]"
 
-        fig = plt.figure()
+        plt.figure(figsize=figsize)
         plt.subplot(2, 1, 1)
         plt.plot(x, y)
         plt.yscale(yscale)
         plt.xlabel(xlabel)
-
         plt.xscale(xscale)
+        #plt.yticks(np.arange(-120,20,30))
         plt.grid(which="both")
         plt.ylabel(ylabel if ylabel is not None else "Amplitude")
 
@@ -218,12 +219,13 @@ class TF(signal.TransferFunction):
         plt.plot(x, np.unwrap(np.angle(H))*180/np.pi)
         plt.xscale(xscale)
         plt.grid(which="both")
+        plt.yticks(np.arange(-110,30,40))
         plt.xlabel(xlabel)
         plt.ylabel("Phase [in deg]")
-        fig.subplots_adjust(hspace=.5)
+        plt.tight_layout(True)
 
-    def plot_step(self, ylabel=None):
-        t, y = self.step()
+    def plot_step(self, ylabel=None, figsize=None):
+        t, y = signal.step((self.num, self.den))
 
         n_zeros = int(t.size * 0.1)
         T = t[1]
@@ -232,11 +234,12 @@ class TF(signal.TransferFunction):
         t = np.concatenate(((np.arange(n_zeros)-n_zeros)*T, t))
         y = np.concatenate((np.zeros(n_zeros), y))
 
-        plt.figure()
+        plt.figure(figsize=figsize)
         plt.plot(t, r)
         plt.plot(t, y)
         plt.xlabel('Time [in s]')
         plt.ylabel(ylabel if ylabel is not None else "Amplitude")
+        plt.tight_layout()
 
 
 class PID(TF):
